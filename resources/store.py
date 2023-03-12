@@ -2,39 +2,50 @@ import uuid
 
 from flask import request
 from flask.views import MethodView
-from flask_smorest import Blueprint,abort
+from flask_smorest import Blueprint, abort
 from db import stores
+
+from schemas import StoreSchema
 
 
 blp = Blueprint("stores", __name__, description="Operations on stores")
 
-@blp.route("/store/<string:store_id")
-class Store(MethodView):
+REQUEST_NEWSTORE_VALIDATION = ["name", "items"]
 
-    def get(self,store_id):
+
+@blp.route("/store/<string:store_id>")
+class Store(MethodView):
+    @blp.response(200, StoreSchema)
+    def get(self, store_id):
         try:
             return stores[store_id]
         except KeyError:
             abort(404, message="Store not found")
-    
-    def delete(self,store_id):
+
+    def delete(self, store_id):
         try:
             del stores[store_id]
-            return {"message" :" store deleted"} 
+            return {"message": " store deleted"}
         except KeyError:
             abort(404, message="Store not found")
 
+
 @blp.route("/store")
 class StoreList(MethodView):
-    def get():
+    @blp.response(200, StoreSchema(many=True))
+    def get(
+        self,
+    ):
         return {"stores": list(stores.values())}
-    
-    def post():
-        request_data = request.get_json()
-        if not all(item in request_data for item in REQUEST_NEWSTORE_VALIDATION):
-            abort(400, {"message":"Unvalid request body, please check information"})
+
+    @blp.arguments(StoreSchema)
+    @blp.response(201, StoreSchema)
+    def post(self, store_data):
+        for store in stores.values():
+            if store_data["name"] == store["name"]:
+                abort(400, message="Store already exist.")
         store_id = uuid.uuid4().hex
 
-        new_store = {**request_data,"id":store_id}
+        new_store = {**store_data, "id": store_id}
         stores[store_id] = new_store
-        return new_store,201
+        return new_store, 201
